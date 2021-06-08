@@ -1,0 +1,172 @@
+---
+title: "COVID-19 Dashboard"
+author: Mena WANG
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    source_code: embed
+    theme: cerulean
+    social: [ "twitter", "linkedin", "menu" ]
+---
+
+```{r setup, include=FALSE}
+# dashboard
+library(flexdashboard)
+library(knitr)
+library(grid) 
+library(lubridate)
+
+
+# theme
+library(ggthemes)
+#devtools::install_github("b-rodrigues/brotools")
+#library(brotools)
+
+# data wrangling
+library(tidyverse)
+library(lubridate)
+
+# data visualization
+library(plotly)
+library(gganimate)
+
+# map
+library(rmapshaper)
+#remotes::install_github("srkobakian/sugarbag")
+#library(sugarbag)
+```
+
+World 
+=======================================================================
+
+```{r time_series}
+# time series of confirmed cases in each area
+df <- read_csv(
+  file = 'https://covid.ourworldindata.org/data/owid-covid-data.csv') 
+Now=Sys.Date()
+
+#rename key variables
+dfALL<-df %>% 
+  rename(Entity=location,
+         Date=date,
+         Continent=continent) %>% 
+  mutate(Date=as.Date(Date),
+         Entity=as.factor(Entity),
+         Entity=recode(Entity,
+                       "United States"="USA",
+                       "United Kindom"="U.K."))
+
+# #Remove unwanted cases
+Continents <- c("Asia","World","North America","Europe","Oceania","South America","Africa","European Union","International")
+UKParts <- c("Scotland","England", "Northern Ireland","Wales")
+
+dfALL <- dfALL %>% 
+  filter(!Entity %in% Continents,
+         !Entity %in% UKParts)
+
+###Choose Vs and Dates
+dfALL<-dfALL %>% 
+  select(Entity,
+         Date,
+         Continent,
+         DailyNew=new_cases_smoothed,
+         DailyNewPM=new_cases_smoothed_per_million,
+         total_vaccinations_per_hundred,
+         reproduction_rate)
+
+Daily <- dfALL %>% 
+  filter(Date >= "2021-01-01")
+
+###############Choose entities with top new cases
+Today=Daily %>% 
+  filter(Date==(max(Date)-1))
+
+Top10List<-Daily %>% 
+  #sometimes the latest date only has very few observations
+  filter(Date==(max(Date)-1)) %>% 
+  arrange(desc(DailyNew)) %>% 
+  slice_max(DailyNew,n=10) %>% 
+  #a variable representing latest DailyNew, then rank entities by it in the plot
+  select(Entity,
+         DailyNewToday=DailyNew)
+
+Top5List <-Top10List %>% 
+  slice_max(DailyNewToday,n=5)
+
+Top10 <- left_join(Top10List,Daily) 
+Top5 <- left_join(Top5List,Daily)
+
+```
+
+Column {.tabset out.width="100%"}
+-----------------------------------------------------------------------
+
+### `r paste0("Entities with the most daily new cases at ", Sys.Date())` 
+
+```{r total_confirmed}
+ggplot(Top10, aes(x=Date,y=DailyNew,color=Continent)) + 
+  geom_line(size=1)+
+  #subplots by entity, ordered by DailyNewToday
+  facet_wrap(facets=~reorder(Entity,-DailyNewToday), 
+             nrow=2,
+             scales="free_y")+
+  #expand_limits(y=0)+
+  #no decimal place, 1000 represented by K
+  scale_y_continuous(labels=scales::number_format(scale=.001,suffix="K",accuracy=1))+
+  labs(title="Countries with the Highest Daily New Cases",
+       subtitle=glue::glue("Last Updated {Now}",),
+       y="",
+       x="",
+       caption="By: @mena_wang  Data: OurWorldInData")+
+  theme_minimal()+
+  theme(plot.title=element_text(face="bold"),
+        plot.subtitle=element_text(hjust=1,color="gray50"),
+        plot.caption=element_text(hjust=1,color="gray50"),        
+        legend.position = "bottom",
+        legend.title = element_blank(),
+        axis.text.x = element_text(angle = 90))
+```
+
+
+### `r paste0("Entities with the most daily new cases and vaccines at ", Sys.Date())` 
+
+```{r}
+p1.1=ggplot(Top5,aes(x=Date,y=total_vaccinations_per_hundred))+
+  geom_line(size=1,color="turquoise3")+
+  facet_wrap(facets=~reorder(Entity,-DailyNewToday),
+             nrow=1)+
+  labs(y="Vaccine Doses (per hundred)",
+       x="",
+       subtitle=glue::glue("Last Updated {Now}"))+
+  theme_minimal()+
+  theme(plot.subtitle=element_text(hjust=1,color="grey40",face="italic"),
+        axis.text.x=element_blank())
+
+p2.1=ggplot(Top5, aes(x=Date,y=DailyNewPM)) + 
+  geom_line(size=1,color="tomato3")+
+  #the countries ordered by DailyNewCases
+  scale_y_continuous(labels=scales::comma_format(accuracy=1))+
+  #if I force to begin with 0, free_y doesn't work
+  #limits=c(0,max(Daily$DailyNewToday)))+
+  facet_wrap(facets=~reorder(Entity,-DailyNewToday),
+             #scales="free_y",
+             nrow = 1)+
+  labs(y="Daily New Cases (per million)",
+       x="",
+       caption="By: @mena_wang   Data: ourworldindata")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90))
+
+#p2.2 DailyNew (not per million, see above)
+
+library(grid)
+p_combined1<-gridExtra::grid.arrange(p1.1,p2.1,
+                                     nrow=2,
+                                     top = textGrob("Five Countries with the Highest Daily New Cases",
+                                                    gp = gpar(fontsize = 12, font = 2)))
+
+```
+
+Victoria 
+=======================================================================
