@@ -5,7 +5,6 @@ output:
   flexdashboard::flex_dashboard:
     orientation: columns
     vertical_layout: fill
-    source_code: embed
     theme: cerulean
     social: [ "twitter", "linkedin", "menu" ]
 ---
@@ -39,6 +38,8 @@ library(rmapshaper)
 
 World 
 =======================================================================
+
+Work in progress, back soon. 
 
 ```{r time_series}
 # time series of confirmed cases in each area
