@@ -111,7 +111,7 @@ Top5 <- left_join(Top5List,Daily)
 
 ```
 
-Column {data-width=600}
+Column {data-width=700}
 -----------------------------------------------------------------------
 
 ### Entities with the most daily new cases
