@@ -34,6 +34,12 @@ library(gganimate)
 library(rmapshaper)
 #remotes::install_github("srkobakian/sugarbag")
 #library(sugarbag)
+
+
+df <- read_csv(
+  file = 'https://covid.ourworldindata.org/data/owid-covid-data.csv') 
+Now=Sys.Date()
+
 ```
 
 World 
@@ -42,10 +48,6 @@ World
 Work in progress, back soon. 
 
 ```{r time_series}
-# time series of confirmed cases in each area
-df <- read_csv(
-  file = 'https://covid.ourworldindata.org/data/owid-covid-data.csv') 
-Now=Sys.Date()
 
 #rename key variables
 dfALL<-df %>% 
@@ -62,6 +64,9 @@ dfALL<-df %>%
 Continents <- c("Asia","World","North America","Europe","Oceania","South America","Africa","European Union","International")
 UKParts <- c("Scotland","England", "Northern Ireland","Wales")
 
+#make sure color is consistent with other COVID graphs
+colors=c("Africa"='grey30',"Asia"='#e41a1c',"Europe"='#2b8cbe',"North America"='#984ea3',"Oceania"='#8dd3c7',"South America"='#feb24c')
+
 dfALL <- dfALL %>% 
   filter(!Entity %in% Continents,
          !Entity %in% UKParts)
@@ -74,7 +79,13 @@ dfALL<-dfALL %>%
          DailyNew=new_cases_smoothed,
          DailyNewPM=new_cases_smoothed_per_million,
          total_vaccinations_per_hundred,
-         reproduction_rate)
+         reproduction_rate,
+         new_deaths_smoothed)
+```
+
+
+```{r}
+#Preparing data for the daily new cases graph
 
 Daily <- dfALL %>% 
   filter(Date >= "2021-01-01")
@@ -100,10 +111,10 @@ Top5 <- left_join(Top5List,Daily)
 
 ```
 
-Column {.tabset out.width="100%"}
+Column {data-width=600}
 -----------------------------------------------------------------------
 
-### `r paste0("Entities with the most daily new cases at ", Sys.Date())` 
+### Entities with the most daily new cases
 
 ```{r total_confirmed}
 ggplot(Top10, aes(x=Date,y=DailyNew,color=Continent)) + 
@@ -115,7 +126,8 @@ ggplot(Top10, aes(x=Date,y=DailyNew,color=Continent)) +
   #expand_limits(y=0)+
   #no decimal place, 1000 represented by K
   scale_y_continuous(labels=scales::number_format(scale=.001,suffix="K",accuracy=1))+
-  labs(title="Countries with the Highest Daily New Cases",
+  scale_color_manual(values=colors)+
+  labs(title="Entities with the Highest Daily New Cases",
        subtitle=glue::glue("Last Updated {Now}",),
        y="",
        x="",
@@ -130,11 +142,9 @@ ggplot(Top10, aes(x=Date,y=DailyNew,color=Continent)) +
 ```
 
 
-### `r paste0("Entities with the most daily new cases and vaccines at ", Sys.Date())` 
-
-```{r}
+```{r eval=FALSE}
 p1.1=ggplot(Top5,aes(x=Date,y=total_vaccinations_per_hundred))+
-  geom_line(size=1,color="turquoise3")+
+  geom_line(size=1,color="grey20")+
   facet_wrap(facets=~reorder(Entity,-DailyNewToday),
              nrow=1)+
   labs(y="Vaccine Doses (per hundred)",
@@ -153,7 +163,7 @@ p2.1=ggplot(Top5, aes(x=Date,y=DailyNewPM)) +
   facet_wrap(facets=~reorder(Entity,-DailyNewToday),
              #scales="free_y",
              nrow = 1)+
-  labs(y="Daily New Cases (per million)",
+  labs(y="New Cases (per million)",
        x="",
        caption="By: @mena_wang   Data: ourworldindata")+
   theme_minimal()+
@@ -164,10 +174,49 @@ p2.1=ggplot(Top5, aes(x=Date,y=DailyNewPM)) +
 library(grid)
 p_combined1<-gridExtra::grid.arrange(p1.1,p2.1,
                                      nrow=2,
-                                     top = textGrob("Five Countries with the Highest Daily New Cases",
+                                     top = textGrob("Vaccine Rate in Entities with the Most New Cases",
                                                     gp = gpar(fontsize = 12, font = 2)))
 
 ```
+
+column
+------------------------------------------------------------------------------------------
+
+### COVID-19 deaths across continents
+
+```{r}
+dfALL %>% 
+  filter(Date>="2020-03-01") %>% 
+  group_by(Date,Continent) %>% 
+  summarize(NewDeaths=sum(new_deaths_smoothed,na.rm=TRUE)) %>% 
+  ggplot(aes(x=Date,y=NewDeaths,fill=Continent))+
+  geom_area(alpha=0.5,size=.5,colour="white")+
+  scale_fill_manual(values=colors)+
+  theme_minimal()+
+  labs(
+    title="COVID-19 Deaths in the World",
+    subtitle=glue::glue("Last Updated {Now}"),
+    y="",
+    x="",
+    caption="By: @mena_wang    Data: ourworldindata"
+  )+
+  scale_y_continuous(labels=scales::number_format(scale=0.001,suffix="K",accuracy=1))+
+  scale_x_date(date_labels = "%b %y",
+               date_breaks = "2 months")+
+  theme(
+    plot.title=element_text(size=15),
+    plot.subtitle=element_text(color="grey50",hjust=1),
+    plot.caption=element_text(hjust=1,color="grey40"),
+    panel.grid.major.x=element_blank(),
+    panel.grid.minor.x=element_blank(),
+    legend.position="bottom"
+  )
+
+```
+
+
+
+
 
 Victoria 
 =======================================================================
